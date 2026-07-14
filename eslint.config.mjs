@@ -29,6 +29,8 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
+      // 👇 القاعدة دي بتمنع التحذيرات الخاصة بالحقول غير المعرفة في الكلاسات
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
       'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },

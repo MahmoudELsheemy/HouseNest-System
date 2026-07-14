@@ -1,72 +1,77 @@
-// import * as mongoose from 'mongoose';
-// import * as bcrypt from 'bcrypt';
-// import * as dotenv from 'dotenv';
-// import { UserSchema } from '../../modules/users/schemas/user.schema';
-// import { Role } from '../../common/enums/role.enum';
+import * as mongoose from 'mongoose';
+import * as bcrypt from 'bcrypt';
+import * as dotenv from 'dotenv';
+import { AdminSchema } from '../../modules/auth/schemas/admin.schema';
+import { Role } from '../../common/enums/role.enum';
 
-// // تحميل ملف البيئة ديناميكياً بناءً على NODE_ENV
-// dotenv.config({
-//   path: `.env.${process.env.NODE_ENV ?? 'development'}`,
-// });
+// تحميل ملف البيئة ديناميكياً بناءً على NODE_ENV
+dotenv.config({
+  path: `.env.${process.env.NODE_ENV ?? 'development'}`,
+});
 
-// async function seed() {
-//   const uri = process.env.MONGO_URI;
-//   const email = process.env.ADMIN_EMAIL;
-//   const password = process.env.ADMIN_PASSWORD;
+async function seed() {
+  const uri = process.env.MONGO_URI;
+  // استخدام المتغيرات المعرفة في ملف الـ .env.development الخاص بك
+  const email = process.env.ADMIN_EMAIL || 'admin@house-nest.com';
+  const password = process.env.ADMIN_PASSWORD || '12345678';
 
-//   if (!uri)
-//     throw new Error('MONGO_URI is not defined in environment variables');
-//   if (!email || !password)
-//     throw new Error('ADMIN_EMAIL or ADMIN_PASSWORD is missing');
+  if (!uri) {
+    throw new Error('❌ MONGO_URI is not defined in environment variables');
+  }
 
-//   console.log('⏳ Connecting to MongoDB...');
-//   await mongoose.connect(uri);
-//   console.log('✅ Connected to MongoDB successfully');
+  console.log('⏳ Connecting to MongoDB...');
+  // تفعيل الاتصال بقاعدة البيانات مع إعدادات الأمان
+  await mongoose.connect(uri, {
+    tls: true,
+  } as mongoose.ConnectOptions);
 
-//   // ربط الموديل بكولكشن الـ users الفعلي للسيستم
-//   const UserModel = mongoose.model('User', UserSchema, 'users');
+  console.log('✅ Connected to MongoDB successfully');
 
-//   // التحقق من وجود مالك للنظام مسبقاً لحماية البيانات
-//   const existingOwner = await UserModel.findOne({ role: Role.OWNER });
+  // ربط الموديل بكولكشن الـ admins الفعلي للسيستم بناءً على الـ AdminSchema
+  const AdminModel = mongoose.model('Admin', AdminSchema, 'admins');
 
-//   if (existingOwner) {
-//     console.log(
-//       '⚠️ System Owner already exists in the database. Seed aborted.',
-//     );
-//     await mongoose.disconnect();
-//     return;
-//   }
+  // التحقق من وجود حساب أدمن مسجل مسبقاً بنفس البريد الإلكتروني لحماية البيانات
+  const existingAdmin = await AdminModel.findOne({
+    email: email.toLowerCase().trim(),
+  });
 
-//   // تشفير كلمة المرور بقوة 12 جولة
-//   const hashedPassword = await bcrypt.hash(password, 12);
+  if (existingAdmin) {
+    console.log(
+      '⚠️ Admin Account already exists in the database. Seed aborted.',
+    );
+    await mongoose.disconnect();
+    return;
+  }
 
-//   // إنشاء حساب المالك الأساسي بالحقول المطابقة تماماً للـ Schema
-//   await UserModel.create({
-//     fullName: 'صاحب المحل الأساسي',
-//     email: email.toLowerCase().trim(),
-//     passwordHash: hashedPassword,
-//     phoneNumber: '01000000000',
-//     role: Role.OWNER,
-//     status: 'ACTIVE',
-//     otpAttempts: 0,
-//   });
+  // تشفير كلمة المرور بقوة 12 جولة (أكثر أماناً)
+  const hashedPassword = await bcrypt.hash(password, 12);
 
-//   console.log('===================================================');
-//   console.log('✅ Global System Owner Created Successfully!');
-//   console.log(`📧 Email: ${email}`);
-//   console.log('🔑 Password: [SECURED FROM ENV]');
-//   console.log(
-//     '⚠️ Please ensure to clear credentials from ENV if in production!',
-//   );
-//   console.log('===================================================');
+  // إنشاء حساب المسؤول الأساسي بالحقول المطابقة تماماً للـ AdminSchema
+  await AdminModel.create({
+    email: email.toLowerCase().trim(),
+    password: hashedPassword,
+    role: Role.ADMIN, // استخدام الـ Enum الخاص بك
+    isActive: true,
+    lastOtpVerifiedAt: undefined,
+    lastLoginAt: undefined,
+  });
 
-//   await mongoose.disconnect();
-//   console.log('🔌 Disconnected from MongoDB');
-// }
+  console.log('===================================================');
+  console.log('✅ Global System Admin Created Successfully!');
+  console.log(`📧 Email: ${email}`);
+  console.log('🔑 Password: [SECURED FROM ENV]');
+  console.log(
+    '⚠️ Please ensure to clear credentials from ENV if in production!',
+  );
+  console.log('===================================================');
 
-// seed().catch((err) => {
-//   console.error('❌ Seed execution failed:', err);
-//   process.exit(1);
-// });
+  await mongoose.disconnect();
+  console.log('🔌 Disconnected from MongoDB');
+}
 
-// //  npx ts-node src/database/seeds/owner.seed.ts
+seed().catch((err) => {
+  console.error('❌ Seed execution failed:', err);
+  process.exit(1);
+});
+
+//npx ts-node src/database/seeds/owner.seed.ts

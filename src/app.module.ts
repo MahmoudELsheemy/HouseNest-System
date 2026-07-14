@@ -2,6 +2,12 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { MailModule } from './modules/mail/mail.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { ProjectsModule } from './modules/projects/projects.module';
+import { UploadModule } from './modules/upload/upload.module';
+import { LeadsModule } from './modules/leads/leads.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 // استدعاء جميع موديولات النظام المترابطة
 
@@ -32,6 +38,12 @@ import { MongooseModule } from '@nestjs/mongoose';
         };
       },
     }),
+    MailModule,
+    AuthModule,
+    ProjectsModule,
+    UploadModule,
+    LeadsModule,
+    DashboardModule,
   ],
   controllers: [AppController],
 })
@@ -50,3 +62,9 @@ export class AppModule {}
 
 // npm install class-validator
 // npm install class-transformer
+
+//npm install nodemailer
+// npm install --save-dev @types/nodemailer
+
+//npm install cloudinary multer
+// npm install --save-dev @types/multer
