@@ -16,6 +16,8 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { LeadsService } from './leads.service';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadStatusDto } from './dto/update-lead-status.dto';
@@ -73,5 +75,15 @@ export class LeadsController {
   })
   async deleteLead(@Param('id') id: string) {
     return this.leadsService.remove(id);
+  }
+
+  @Get('admin/leads/export/excel')
+  @UseGuards(JwtAuthGuard, OtpVerifiedGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'الأدمن: تصدير كافة بيانات العملاء والمهتمين إلى ملف Excel',
+  })
+  async exportLeadsToExcel(@Res() res: Response) {
+    return this.leadsService.exportLeadsToExcel(res);
   }
 }

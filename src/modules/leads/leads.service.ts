@@ -11,6 +11,8 @@ import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadStatusDto } from './dto/update-lead-status.dto';
 import { MailService } from '../mail/mail.service';
 import { ConfigService } from '@nestjs/config';
+import * as Workbook from 'exceljs';
+import { Response } from 'express';
 
 @Injectable()
 export class LeadsService {
@@ -122,5 +124,73 @@ export class LeadsService {
     return {
       message: 'تم حذف بيانات العميل بنجاح من النظام',
     };
+  }
+
+  async exportLeadsToExcel(res: Response) {
+    // 1. جلب كافة العملاء مع بيانات مشاريعهم المرتبطة
+    const leads = await this.leadModel
+      .find()
+      .populate('projectId', 'name location')
+      .sort({ createdAt: -1 });
+
+    // 2. إنشاء ملف إكسل ورقة عمل جديدة
+    const workbook = new Workbook.Workbook();
+    const worksheet = workbook.addWorksheet('قائمة العملاء المهتمين');
+
+    // 3. تحديد وتنسيق أعمدة الإكسل
+    worksheet.columns = [
+      { header: '#', key: 'index', width: 8 },
+      { header: 'الاسم الكامل', key: 'fullName', width: 25 },
+      { header: 'رقم الهاتف', key: 'phoneNumber', width: 18 },
+      { header: 'البريد الإلكتروني', key: 'email', width: 25 },
+      { header: 'المشروع المهتم به', key: 'projectName', width: 25 },
+      { header: 'موقع المشروع', key: 'projectLocation', width: 20 },
+      { header: 'حالة العميل', key: 'status', width: 15 },
+      { header: 'الملاحظات', key: 'notes', width: 30 },
+      { header: 'تاريخ التسجيل', key: 'createdAt', width: 20 },
+    ];
+
+    // 4. تنسيق هيدر جدول الإكسل (تصميم احترافي)
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFF' }, size: 12 };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '1E3A8A' }, // لون أزرق غامق احترافي
+    };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    // 5. تعبئة الصفوف ببيانات العملاء
+    leads.forEach((lead, index) => {
+      const project = lead.projectId as any;
+
+      const row = worksheet.addRow({
+        index: index + 1,
+        fullName: lead.fullName,
+        phoneNumber: lead.phoneNumber,
+        email: lead.email || 'غير متوفر',
+        projectName: project ? project.name : 'مشروع محذوف',
+        projectLocation: project ? project.location : '-',
+        status: lead.status,
+        notes: lead.notes || '-',
+        createdAt: new Date((lead as any).createdAt).toLocaleString('ar-EG'),
+      });
+
+      row.alignment = { vertical: 'middle', horizontal: 'right' };
+    });
+
+    // 6. ضبط إعدادات الاستجابة لحفظ الملف وتنزيله في المتصفح
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=HouseNest_Leads_${Date.now()}.xlsx`,
+    );
+
+    // كتابة الملف في الـ Response Stream
+    await workbook.xlsx.write(res);
+    res.end();
   }
 }

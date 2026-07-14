@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import type { Express } from 'express';
+import helmet from 'helmet';
 
 const SWAGGER_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14';
 
@@ -25,6 +26,12 @@ async function createApp(): Promise<Express> {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
   });
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: false, // نغلقه فقط إذا واجه الـ Swagger مشاكل في عرض واجهته الرسومية
+    }),
+  );
 
   app.useGlobalPipes(
     new ValidationPipe({

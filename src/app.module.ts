@@ -2,14 +2,16 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'; // 👈 استيراد Throttler
+import { APP_GUARD } from '@nestjs/core';
+
 import { MailModule } from './modules/mail/mail.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { LeadsModule } from './modules/leads/leads.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
-
-// استدعاء جميع موديولات النظام المترابطة
+import { SettingsModule } from './modules/settings/settings.module';
 
 @Module({
   imports: [
@@ -19,7 +21,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
       envFilePath: `.env.${process.env.NODE_ENV ?? 'development'}`,
     }),
 
-    // 2. الاتصال غير المتزامن بقاعدة بيانات MongoDB المحمية
+    // 2. الاتصال غير المتزامن بقاعدة بيانات MongoDB
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
@@ -38,14 +40,31 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
         };
       },
     }),
+
+    // 3. درع الحماية ضد الـ Brute Force والـ DDOS (يسمح بـ 60 طلب كحد أقصى لكل دقيقة لكل IP)
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000, // دقيقة واحدة بالملي ثانية
+        limit: 60, // عدد الطلبات المسموح بها
+      },
+    ]),
+
     MailModule,
     AuthModule,
     ProjectsModule,
     UploadModule,
     LeadsModule,
     DashboardModule,
+    SettingsModule,
   ],
   controllers: [AppController],
+  providers: [
+    // تفعيل درع الحماية عالمياً على مستوى التطبيق بالكامل
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
 
