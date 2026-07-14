@@ -22,7 +22,7 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OtpVerifiedGuard } from '../../common/guards/otp-verified.guard';
 
-@ApiTags('إدارة المشاريع العقارية (Projects)')
+@ApiTags('إدارة المشاريع العقارية (Projects)')  
 @Controller()
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
@@ -30,7 +30,7 @@ export class ProjectsController {
   // ─── الـ Endpoints العامة للزوار (Public Website) ───
 
   @Get('projects')
-  @ApiOperation({ summary: 'جلب جميع المشاريع العقارية المنشورة للزوار' })
+  @ApiOperation({ summary: 'جلب جميع المشاريع العقارية المنشورا للزوار' })
   @ApiResponse({ status: 200, description: 'قائمة المشاريع المنشورة' })
   async getPublicProjects() {
     return this.projectsService.findAllPublished();
