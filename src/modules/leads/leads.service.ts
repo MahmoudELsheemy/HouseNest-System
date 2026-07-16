@@ -51,22 +51,23 @@ export class LeadsService {
     // ─── جلب بريد الأدمن ديناميكياً من قاعدة البيانات ───
     try {
       // البحث عن أول سجل إعدادات في الـ Database
-      // const settings = await this.settingModel.findOne();
+      const settings = await this.settingModel.findOne();
 
       // إذا كانت الإعدادات موجودة نأخذ الإيميل منها، وإلا نرجع للـ .env كحل احتياطي (Fallback)
-      const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
+      const adminEmail =
+        settings?.contactEmail || this.configService.get<string>('ADMIN_EMAIL');
 
       if (adminEmail) {
         const subject = `🔥 عميل جديد مهتم بـ: ${project.name}`;
         const message = `
-    لقد تلقيت طلباً جديداً من أحد العملاء المهتمين بمشروعك العقاري:
-    <br><br>
-    <b>👤 الاسم الكامل:</b> ${fullName}<br>
-    <b>📞 رقم الهاتف:</b> ${phoneNumber}<br>
-    <b>📧 البريد الإلكتروني:</b> ${email || 'غير متوفر'}<br>
-    <b>🏢 المشروع المهتم به:</b> ${project.name}<br>
-    <b>📍 موقع المشروع:</b> ${project.location}
-  `;
+          لقد تلقيت طلباً جديداً من أحد العملاء المهتمين بمشروعك العقاري:
+          <br><br>
+          <b>👤 الاسم الكامل:</b> ${fullName}<br>
+          <b>📞 رقم الهاتف:</b> ${phoneNumber}<br>
+          <b>📧 البريد الإلكتروني:</b> ${email || 'غير متوفر'}<br>
+          <b>🏢 المشروع المهتم به:</b> ${project.name}<br>
+          <b>📍 موقع المشروع:</b> ${project.location}
+        `;
         await this.mailService.sendAdminNotification(
           adminEmail,
           subject,
