@@ -7,6 +7,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Lead } from './schemas/lead.schema';
 import { Project } from '../projects/schemas/project.schema';
+import { Setting } from '../settings/schemas/setting.schema'; // 👈 استيراد الـ Setting Schema
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadStatusDto } from './dto/update-lead-status.dto';
 import { MailService } from '../mail/mail.service';
@@ -19,12 +20,13 @@ export class LeadsService {
   constructor(
     @InjectModel(Lead.name) private readonly leadModel: Model<Lead>,
     @InjectModel(Project.name) private readonly projectModel: Model<Project>,
+    @InjectModel(Setting.name) private readonly settingModel: Model<Setting>, // 👈 حقن موديل الإعدادات
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
   ) {}
 
   /**
-   * 1. استقبال طلب عميل جديد (عام للزوار) + إرسال إشعار فوري بريدي للأدمن
+   * 1. استقبال طلب عميل جديد (عام للزوار) + إرسال إشعار فوري بريدي للأدمن الفعلي ديناميكياً
    */
   async create(createLeadDto: CreateLeadDto) {
     const { fullName, phoneNumber, email, projectId } = createLeadDto;
@@ -46,9 +48,15 @@ export class LeadsService {
     });
     await newLead.save();
 
-    // ─── إشعار الأدمن فوراً عبر البريد الإلكتروني ───
+    // ─── جلب بريد الأدمن ديناميكياً من قاعدة البيانات ───
     try {
-      const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
+      // البحث عن أول سجل إعدادات في الـ Database
+      const settings = await this.settingModel.findOne();
+
+      // إذا كانت الإعدادات موجودة نأخذ الإيميل منها، وإلا نرجع للـ .env كحل احتياطي (Fallback)
+      const adminEmail =
+        settings?.contactEmail || this.configService.get<string>('ADMIN_EMAIL');
+
       if (adminEmail) {
         const subject = `🔥 عميل جديد مهتم بـ: ${project.name}`;
         const message = `
@@ -67,7 +75,6 @@ export class LeadsService {
         );
       }
     } catch (mailError) {
-      // نكتفي بطباعة الخطأ لكي لا تتعطل تجربة الزائر أثناء إرسال بياناته
       console.error(
         '⚠️ فشل إرسال إشعار بريدي للأدمن بالعميل الجديد:',
         mailError,
@@ -86,7 +93,7 @@ export class LeadsService {
   async findAllForAdmin() {
     const leads = await this.leadModel
       .find()
-      .populate('projectId', 'name location coverImage') // عمل Populate لاسترجاع بيانات المشروع فوراً
+      .populate('projectId', 'name location coverImage')
       .sort({ createdAt: -1 });
     return { data: leads };
   }
@@ -126,18 +133,18 @@ export class LeadsService {
     };
   }
 
+  /**
+   * تصدير البيانات إلى Excel
+   */
   async exportLeadsToExcel(res: Response) {
-    // 1. جلب كافة العملاء مع بيانات مشاريعهم المرتبطة
     const leads = await this.leadModel
       .find()
       .populate('projectId', 'name location')
       .sort({ createdAt: -1 });
 
-    // 2. إنشاء ملف إكسل ورقة عمل جديدة
     const workbook = new Workbook.Workbook();
     const worksheet = workbook.addWorksheet('قائمة العملاء المهتمين');
 
-    // 3. تحديد وتنسيق أعمدة الإكسل
     worksheet.columns = [
       { header: '#', key: 'index', width: 8 },
       { header: 'الاسم الكامل', key: 'fullName', width: 25 },
@@ -150,17 +157,15 @@ export class LeadsService {
       { header: 'تاريخ التسجيل', key: 'createdAt', width: 20 },
     ];
 
-    // 4. تنسيق هيدر جدول الإكسل (تصميم احترافي)
     const headerRow = worksheet.getRow(1);
     headerRow.font = { bold: true, color: { argb: 'FFFFFF' }, size: 12 };
     headerRow.fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: '1E3A8A' }, // لون أزرق غامق احترافي
+      fgColor: { argb: '1E3A8A' },
     };
     headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
 
-    // 5. تعبئة الصفوف ببيانات العملاء
     leads.forEach((lead, index) => {
       const project = lead.projectId as any;
 
@@ -179,7 +184,6 @@ export class LeadsService {
       row.alignment = { vertical: 'middle', horizontal: 'right' };
     });
 
-    // 6. ضبط إعدادات الاستجابة لحفظ الملف وتنزيله في المتصفح
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -189,7 +193,6 @@ export class LeadsService {
       `attachment; filename=HouseNest_Leads_${Date.now()}.xlsx`,
     );
 
-    // كتابة الملف في الـ Response Stream
     await workbook.xlsx.write(res);
     res.end();
   }

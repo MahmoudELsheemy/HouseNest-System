@@ -3,24 +3,22 @@ import { Document } from 'mongoose';
 
 @Schema({ timestamps: true })
 export class Setting extends Document {
-  @Prop({ required: true, default: 'House Nest' })
+  @Prop({ required: true })
   siteName: string;
 
-  @Prop({
-    default: 'بوابتك العقارية لإيجاد أفضل المشاريع السكنية والاستثمارية',
-  })
+  @Prop()
   siteDescription: string;
 
-  @Prop({ default: 'mahmoudelsheemy164@gmail.com' })
+  @Prop()
   contactEmail: string;
 
-  @Prop({ default: '01000000000' })
+  @Prop()
   contactPhone: string;
 
-  @Prop({ default: '01000000000' })
+  @Prop()
   whatsappNumber: string;
 
-  @Prop({ default: 'https://res.cloudinary.com/.../logo.png' })
+  @Prop()
   logoUrl: string;
 
   @Prop({ default: false })
