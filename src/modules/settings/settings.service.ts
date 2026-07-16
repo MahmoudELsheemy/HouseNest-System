@@ -19,28 +19,24 @@ export class SettingsService implements OnApplicationBootstrap {
   }
 
   /**
-   * مزامنة وتحديث قيم قاعدة البيانات مع ملف الـ .env الفعلي
+   * تهيئة إعدادات المنصة الافتراضية من الـ .env عند تشغيل النظام لأول مرة فقط
    */
   private async syncDefaultSettingsWithEnv() {
     try {
-      // 1. جلب القيم من الـ .env بشكل صارم وبدون قيم احتياطية لمحمود الشيمي داخل الكود
       const envEmail = this.configService.get<string>('ADMIN_EMAIL');
-
-      this.logger.log(
-        `🔍 [Config Check] Current ADMIN_EMAIL read from .env is: "${envEmail}"`,
-      );
 
       if (!envEmail) {
         this.logger.error(
-          '⚠️ خطأ كاريثي: لم يتم العثور على ADMIN_EMAIL في ملف الـ .env الفعلي الخاص بك!',
+          '⚠️ تحذير: لم يتم العثور على ADMIN_EMAIL في ملف الـ .env.development الخاص بك!',
         );
         return;
       }
 
       let settings = await this.settingModel.findOne();
 
+      // ─── التعديل المصلح ───
+      // نقوم بالإنشاء فقط إذا كانت قاعدة البيانات خالية تماماً من الإعدادات
       if (!settings) {
-        // إنشاء السجل لأول مرة بالقيم القادمة من الـ .env حصراً
         settings = new this.settingModel({
           siteName: this.configService.get<string>('SITE_NAME', 'House Nest'),
           siteDescription: this.configService.get<string>(
@@ -64,28 +60,18 @@ export class SettingsService implements OnApplicationBootstrap {
         });
         await settings.save();
         this.logger.log(
-          `✨ تم إنشاء سجل إعدادات جديد كلياً بالإيميل الفعلي: ${envEmail}`,
+          `✨ تم إنشاء سجل الإعدادات الافتراضي لأول مرة بالإيميل: ${envEmail}`,
         );
       } else {
-        // إذا كان السجل موجوداً والإيميل مختلف عن الـ .env، نقوم بتحديثه فوراً وبقوة
-        if (
-          settings.contactEmail?.toLowerCase().trim() !==
-          envEmail.toLowerCase().trim()
-        ) {
-          const oldEmail = settings.contactEmail;
-          settings.contactEmail = envEmail.toLowerCase().trim();
-          await settings.save();
-          this.logger.log(
-            `🔄 تم تحديث البريد في قاعدة البيانات من [${oldEmail}] إلى [${envEmail}] بنجاح!`,
-          );
-        } else {
-          this.logger.log(
-            `🔒 تم التحقق: البريد الحالي في قاعدة البيانات مطابق للـ .env وهو: ${envEmail}`,
-          );
-        }
+        // إذا كان السجل موجوداً مسبقاً، لا نقوم بمزامنة أو مسح الإيميل الذي عدله الأدمن يدوياً
+        this.logger.log(
+          `🔒 تم التحقق: سجل الإعدادات موجود ومستقر بالفعل في قاعدة البيانات.`,
+        );
       }
     } catch (error: any) {
-      this.logger.error(`❌ فشل مزامنة الإعدادات: ${error?.message || error}`);
+      this.logger.error(
+        `❌ فشل تهيئة الإعدادات الافتراضية: ${error?.message || error}`,
+      );
     }
   }
 
@@ -102,7 +88,7 @@ export class SettingsService implements OnApplicationBootstrap {
   }
 
   /**
-   * تحديث الإعدادات يدوياً
+   * تحديث الإعدادات يدوياً (خاص بالأدمن فقط من الـ Swagger أو الـ Dashboard)
    */
   async updateSettings(updateSettingsDto: UpdateSettingsDto) {
     let settings = await this.settingModel.findOne();
