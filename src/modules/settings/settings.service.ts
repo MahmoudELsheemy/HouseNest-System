@@ -1,4 +1,4 @@
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common'; // 👈 أضفنا OnApplicationBootstrap
+import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Setting } from './schemas/setting.schema';
@@ -7,30 +7,40 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class SettingsService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(SettingsService.name);
+
   constructor(
     @InjectModel(Setting.name) private readonly settingModel: Model<Setting>,
     private readonly configService: ConfigService,
   ) {}
 
-  /**
-   * دالة تعمل تلقائياً عند تشغيل السيرفر لمزامنة الإيميل الافتراضي مع الـ .env فوراً
-   */
   async onApplicationBootstrap() {
     await this.syncDefaultSettingsWithEnv();
   }
 
   /**
-   * التحقق ومزامنة قيم الـ .env الحالية مع قاعدة البيانات لتفادي ترحيل قيم قديمة
+   * مزامنة وتحديث قيم قاعدة البيانات مع ملف الـ .env الفعلي
    */
   private async syncDefaultSettingsWithEnv() {
     try {
+      // 1. جلب القيم من الـ .env بشكل صارم وبدون قيم احتياطية لمحمود الشيمي داخل الكود
       const envEmail = this.configService.get<string>('ADMIN_EMAIL');
-      if (!envEmail) return;
+
+      this.logger.log(
+        `🔍 [Config Check] Current ADMIN_EMAIL read from .env is: "${envEmail}"`,
+      );
+
+      if (!envEmail) {
+        this.logger.error(
+          '⚠️ خطأ كاريثي: لم يتم العثور على ADMIN_EMAIL في ملف الـ .env الفعلي الخاص بك!',
+        );
+        return;
+      }
 
       let settings = await this.settingModel.findOne();
 
       if (!settings) {
-        // إذا كانت الإعدادات غير موجودة، ننشئها بالقيم الجديدة
+        // إنشاء السجل لأول مرة بالقيم القادمة من الـ .env حصراً
         settings = new this.settingModel({
           siteName: this.configService.get<string>('SITE_NAME', 'House Nest'),
           siteDescription: this.configService.get<string>(
@@ -53,28 +63,29 @@ export class SettingsService implements OnApplicationBootstrap {
           maintenanceMode: false,
         });
         await settings.save();
-        console.log(
-          `✨ تم إنشاء سجل إعدادات افتراضي جديد بالإيميل: ${envEmail}`,
+        this.logger.log(
+          `✨ تم إنشاء سجل إعدادات جديد كلياً بالإيميل الفعلي: ${envEmail}`,
         );
       } else {
-        // ─── الحل السحري ───
-        // إذا وجدنا السجل ولكن الإيميل المخزن يختلف عن الإيميل المكتوب بالـ .env الحالي، نقوم بتحديثه فوراً!
+        // إذا كان السجل موجوداً والإيميل مختلف عن الـ .env، نقوم بتحديثه فوراً وبقوة
         if (
           settings.contactEmail?.toLowerCase().trim() !==
           envEmail.toLowerCase().trim()
         ) {
+          const oldEmail = settings.contactEmail;
           settings.contactEmail = envEmail.toLowerCase().trim();
           await settings.save();
-          console.log(
-            `🔄 تم مزامنة وتحديث إيميل الإشعارات بنجاح إلى: ${envEmail}`,
+          this.logger.log(
+            `🔄 تم تحديث البريد في قاعدة البيانات من [${oldEmail}] إلى [${envEmail}] بنجاح!`,
+          );
+        } else {
+          this.logger.log(
+            `🔒 تم التحقق: البريد الحالي في قاعدة البيانات مطابق للـ .env وهو: ${envEmail}`,
           );
         }
       }
     } catch (error: any) {
-      console.error(
-        '❌ حدث خطأ أثناء مزامنة إعدادات المنصة:',
-        error?.message || error,
-      );
+      this.logger.error(`❌ فشل مزامنة الإعدادات: ${error?.message || error}`);
     }
   }
 
@@ -84,7 +95,6 @@ export class SettingsService implements OnApplicationBootstrap {
   async getSettings() {
     let settings = await this.settingModel.findOne();
     if (!settings) {
-      // استدعاء المزامنة يدوياً كحماية إضافية
       await this.syncDefaultSettingsWithEnv();
       settings = await this.settingModel.findOne();
     }
@@ -92,12 +102,16 @@ export class SettingsService implements OnApplicationBootstrap {
   }
 
   /**
-   * تحديث الإعدادات (خاص بالأدمن فقط)
+   * تحديث الإعدادات يدوياً
    */
   async updateSettings(updateSettingsDto: UpdateSettingsDto) {
     let settings = await this.settingModel.findOne();
 
     if (!settings) {
+      const envEmail = this.configService.get<string>(
+        'ADMIN_EMAIL',
+        'alshymyhwdh@gmail.com',
+      );
       settings = new this.settingModel({
         siteName:
           updateSettingsDto.siteName ??
@@ -106,8 +120,7 @@ export class SettingsService implements OnApplicationBootstrap {
           updateSettingsDto.siteDescription ??
           this.configService.get<string>('SITE_DESCRIPTION'),
         contactEmail:
-          updateSettingsDto.contactEmail ??
-          this.configService.get<string>('ADMIN_EMAIL'),
+          updateSettingsDto.contactEmail ?? envEmail.toLowerCase().trim(),
         contactPhone:
           updateSettingsDto.contactPhone ??
           this.configService.get<string>('CONTACT_PHONE'),
